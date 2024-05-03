@@ -1,0 +1,113 @@
+---
+- hosts: servers
+  remote_user: root
+  become: yes
+  vars_files:
+    - vars/vars.yml
+  tasks:
+    - name: IP Config for internal card
+      community.general.nmcli:
+        conn_name: '{{interface[0]}}'
+        ifname: '{{interface[0]}}'
+        type: '{{conn_type[0]}}'
+        ip4: '{{ipv4_addresses[0]}}'
+        gw4: '{{ipv4_addresses[1]}}'
+        dns4: '{{ipv4_addresses[1]}}'
+        zone: '{{zone[0]}}'
+        state: present
+
+    - name: Make external card
+      community.general.nmcli:
+        conn_name: '{{interface[0]}}'
+        ifname: '{{interface[0]}}'
+        type: '{{conn_type[0]}}'
+        zone: '{{zone[1]}}'
+        state: present
+
+    - name: Install LEMP
+      community.general.zypper:
+        name: '{{item}}'
+        state: latest
+      loop: '{{ services | flatten }}'
+
+    - name: Add content to info.php
+      ansible.builtin.template:
+        src: '{{php_info_paths[0]}}'
+        dest: '{{php_info_paths[1]}}'
+
+    - name: Add sample PHP website
+      synchronize:
+        src: '{{ nginx_php_paths[0] }}'
+        dest: '{{ nginx_path[0] }}'
+       
+    - name: Enable services
+      ansible.builtin.service:
+        name: '{{item}}'
+        enabled: yes
+      loop:
+        - '{{services[0]}}'
+        - '{{services[2]}}'
+        - '{{services[6]}}'
+
+    - name: Start services
+      ansible.builtin.service:
+        name: '{{item}}'
+        state: started
+      loop:
+        - '{{services[0]}}'
+        - '{{services[2]}}'
+        - '{{services[6]}}'
+
+    - name: Find Folder PHP folder with version
+      shell: ls -d /var/lib/php* 2>/dev/null
+      register: php_folder
+      changed_when: false
+
+    - name: Create phpadmin folder
+      ansible.builtin.file:
+        path: "{{ php_folder.stdout }}/sessions"
+        mode: '0733'
+      when: php_folder.stdout != ""
+
+    - name: Copy phpMyAdmin folder
+      command: cp -rf '{{phpMyAdmin_paths[0]}}' '{{nginx_path[0]}}'
+
+    - name: Create phpadmin folder
+      ansible.builtin.file:
+        path: '{{phpMyAdmin_paths[1]}}'
+        mode: '0777'
+
+    - name: Configuration vhost file
+      ansible.builtin.template:
+        src: '{{nginx_path[1]}}'
+        dest: '{{nginx_path[2]}}'
+
+    - name: Nginx Configuration
+      ansible.builtin.template:
+        src: '{{nginx_path[3]}}'
+        dest: '{{nginx_path[4]}}'
+
+    - name: Restart Services
+      ansible.builtin.service:
+        name: '{{item}}'
+        state: restarted
+      loop:
+        - '{{services[0]}}'
+        - '{{services[2]}}'
+        - '{{services[6]}}'
+
+    - name: Add php-fpm to AppArmor
+      ansible.builtin.command: aa-complain /etc/apparmor.d/php-fpm
+
+    - name: Create database user with name test and password password with all database privileges
+      community.mysql.mysql_user:
+        name: '{{ mysql_user }}'
+        password: '{{ mysql_password }}'
+        priv: '{{ mysql_priv }}'
+        state: present
+
+    - name: Removes all anonymous user accounts
+      community.mysql.mysql_user:
+        name: ''
+        host_all: true
+        state: absent

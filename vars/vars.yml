@@ -1,0 +1,41 @@
+interface:
+- eth2
+- eth0
+conn_type:
+- ethernet
+ipv4_addresses:
+- 20.20.20.1/24
+- 20.20.20.254
+zone:
+- internal
+- external
+services:
+- nginx
+- mariadb-client
+- mariadb
+- php
+- php-mysql
+- php-gd
+- php-fpm
+- phpMyAdmin
+mysql_user: 'test'
+mysql_password: 'password'
+mysql_priv: '*.*:ALL'
+
+php_info_paths:
+- templates/info.j2
+- /srv/www/htdocs/info.php
+
+nginx_php_paths:
+- templates/php/
+
+nginx_path:
+- /srv/www/htdocs/
+- templates/vhost.j2
+- /etc/nginx/vhosts.d/phpmyadmin
+- templates/nginx.j2
+- /etc/nginx/nginx.conf
+
+phpMyAdmin_paths:
+- /usr/share/phpMyAdmin/
+- /srv/www/htdocs/phpMyAdmin
